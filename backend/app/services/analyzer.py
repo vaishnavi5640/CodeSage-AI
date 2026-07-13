@@ -2,37 +2,87 @@ import ast
 
 def analyze_code(code: str):
     issues = []
+    recommendations = []
 
-    # Check Python syntax
+    # -------------------------
+    # Syntax Check
+    # -------------------------
     try:
-        ast.parse(code)
+        tree = ast.parse(code)
     except SyntaxError as e:
         issues.append(f"Syntax Error at line {e.lineno}: {e.msg}")
 
-    # Check for print statements
+        return {
+            "score": 50,
+            "grade": "D",
+            "issues": issues,
+            "recommendations": [
+                "Fix the syntax errors before running further analysis."
+            ],
+            "summary": "Syntax errors detected."
+        }
+
+    # -------------------------
+    # Print Statement Check
+    # -------------------------
     if "print(" in code:
         issues.append("Avoid unnecessary print statements in production.")
+        recommendations.append("Remove debug print statements.")
 
-    # Security checks
+    # -------------------------
+    # Security Checks
+    # -------------------------
     if "eval(" in code:
         issues.append("Security Risk: Avoid using eval().")
+        recommendations.append("Use safer alternatives instead of eval().")
 
     if "exec(" in code:
         issues.append("Security Risk: Avoid using exec().")
+        recommendations.append("Avoid exec() because it can execute arbitrary code.")
 
-    # Check for TODO comments
+    # -------------------------
+    # TODO Check
+    # -------------------------
     if "TODO" in code:
-        issues.append("TODO comments found. Complete them before deployment.")
+        issues.append("TODO comments found.")
+        recommendations.append("Complete TODO items before deployment.")
 
-    # Check for very long files
-    lines = code.splitlines()
-    if len(lines) > 300:
-        issues.append("Large file detected. Consider splitting it into smaller modules.")
+    # -------------------------
+    # Large File Check
+    # -------------------------
+    if len(code.splitlines()) > 300:
+        issues.append("Large file detected.")
+        recommendations.append("Split the file into smaller modules.")
 
-    # Calculate score
+    # -------------------------
+    # Unused Import Detection
+    # -------------------------
+    imported_modules = []
+    used_names = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported_modules.append(alias.name)
+
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                imported_modules.append(alias.name)
+
+        elif isinstance(node, ast.Name):
+            used_names.append(node.id)
+
+    for module in imported_modules:
+        short_name = module.split(".")[0]
+        if short_name not in used_names:
+            issues.append(f"Unused import: {module}")
+            recommendations.append(f"Remove unused import '{module}'.")
+
+    # -------------------------
+    # Score
+    # -------------------------
     score = max(100 - (len(issues) * 10), 50)
 
-    # Assign grade
     if score >= 90:
         grade = "A"
     elif score >= 80:
@@ -41,24 +91,6 @@ def analyze_code(code: str):
         grade = "C"
     else:
         grade = "D"
-
-    # Recommendations
-    recommendations = []
-
-    if "print(" in code:
-        recommendations.append("Remove unnecessary print statements.")
-
-    if "eval(" in code:
-        recommendations.append("Replace eval() with safer alternatives.")
-
-    if "exec(" in code:
-        recommendations.append("Avoid exec() to prevent code injection risks.")
-
-    if "TODO" in code:
-        recommendations.append("Finish all TODO items before deployment.")
-
-    if len(lines) > 300:
-        recommendations.append("Split large files into smaller modules.")
 
     return {
         "score": score,
