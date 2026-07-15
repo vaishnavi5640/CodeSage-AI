@@ -34,7 +34,7 @@ def analyze_code(code: str):
     # -------------------------
     if "eval(" in code:
         issues.append("Security Risk: Avoid using eval().")
-        recommendations.append("Use safer alternatives instead of eval().")
+        recommendations.append("Replace eval() with a safer alternative.")
 
     if "exec(" in code:
         issues.append("Security Risk: Avoid using exec().")
@@ -55,12 +55,17 @@ def analyze_code(code: str):
         recommendations.append("Split the file into smaller modules.")
 
     # -------------------------
-    # Unused Import Detection
+    # Collect Imports
     # -------------------------
     imported_modules = []
     used_names = []
 
+    # Variables
+    assigned_variables = []
+    used_variables = []
+
     for node in ast.walk(tree):
+
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imported_modules.append(alias.name)
@@ -70,18 +75,42 @@ def analyze_code(code: str):
                 imported_modules.append(alias.name)
 
         elif isinstance(node, ast.Name):
-            used_names.append(node.id)
 
+            if isinstance(node.ctx, ast.Store):
+                assigned_variables.append(node.id)
+
+            elif isinstance(node.ctx, ast.Load):
+                used_variables.append(node.id)
+                used_names.append(node.id)
+
+    # -------------------------
+    # Unused Imports
+    # -------------------------
     for module in imported_modules:
         short_name = module.split(".")[0]
+
         if short_name not in used_names:
             issues.append(f"Unused import: {module}")
             recommendations.append(f"Remove unused import '{module}'.")
 
     # -------------------------
+    # Unused Variables
+    # -------------------------
+    for variable in assigned_variables:
+
+        if variable not in used_variables:
+
+            if not variable.startswith("_"):
+
+                issues.append(f"Unused variable: {variable}")
+                recommendations.append(
+                    f"Remove the unused variable '{variable}' or use it."
+                )
+
+    # -------------------------
     # Score
     # -------------------------
-    score = max(100 - (len(issues) * 10), 50)
+    score = max(100 - len(issues) * 10, 50)
 
     if score >= 90:
         grade = "A"
