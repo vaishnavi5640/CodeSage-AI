@@ -1,115 +1,49 @@
-import ast
+from app.services.syntax_checker import check_syntax
+from app.services.security_checker import check_security
+from app.services.metrics import get_metrics
+from app.services.quality_checker import check_quality
+
 
 def analyze_code(code: str):
-    issues = []
-    recommendations = []
 
     # -------------------------
     # Syntax Check
     # -------------------------
-    try:
-        tree = ast.parse(code)
-    except SyntaxError as e:
-        issues.append(f"Syntax Error at line {e.lineno}: {e.msg}")
+    syntax_issues = check_syntax(code)
 
+    if syntax_issues:
         return {
             "score": 50,
             "grade": "D",
-            "issues": issues,
+            "metrics": {},
+            "issues": syntax_issues,
             "recommendations": [
-                "Fix the syntax errors before running further analysis."
+                "Fix syntax errors before running further analysis."
             ],
             "summary": "Syntax errors detected."
         }
 
     # -------------------------
-    # Print Statement Check
+    # Metrics
     # -------------------------
-    if "print(" in code:
-        issues.append("Avoid unnecessary print statements in production.")
-        recommendations.append("Remove debug print statements.")
+    metrics = get_metrics(code)
 
     # -------------------------
-    # Security Checks
+    # Security
     # -------------------------
-    if "eval(" in code:
-        issues.append("Security Risk: Avoid using eval().")
-        recommendations.append("Replace eval() with a safer alternative.")
-
-    if "exec(" in code:
-        issues.append("Security Risk: Avoid using exec().")
-        recommendations.append("Avoid exec() because it can execute arbitrary code.")
+    security_issues, security_recommendations = check_security(code)
 
     # -------------------------
-    # TODO Check
+    # Quality
     # -------------------------
-    if "TODO" in code:
-        issues.append("TODO comments found.")
-        recommendations.append("Complete TODO items before deployment.")
+    quality_issues, quality_recommendations = check_quality(code, metrics)
 
     # -------------------------
-    # Large File Check
+    # Merge Results
     # -------------------------
-    if len(code.splitlines()) > 300:
-        issues.append("Large file detected.")
-        recommendations.append("Split the file into smaller modules.")
+    issues = security_issues + quality_issues
+    recommendations = security_recommendations + quality_recommendations
 
-    # -------------------------
-    # Collect Imports
-    # -------------------------
-    imported_modules = []
-    used_names = []
-
-    # Variables
-    assigned_variables = []
-    used_variables = []
-
-    for node in ast.walk(tree):
-
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imported_modules.append(alias.name)
-
-        elif isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                imported_modules.append(alias.name)
-
-        elif isinstance(node, ast.Name):
-
-            if isinstance(node.ctx, ast.Store):
-                assigned_variables.append(node.id)
-
-            elif isinstance(node.ctx, ast.Load):
-                used_variables.append(node.id)
-                used_names.append(node.id)
-
-    # -------------------------
-    # Unused Imports
-    # -------------------------
-    for module in imported_modules:
-        short_name = module.split(".")[0]
-
-        if short_name not in used_names:
-            issues.append(f"Unused import: {module}")
-            recommendations.append(f"Remove unused import '{module}'.")
-
-    # -------------------------
-    # Unused Variables
-    # -------------------------
-    for variable in assigned_variables:
-
-        if variable not in used_variables:
-
-            if not variable.startswith("_"):
-
-                issues.append(f"Unused variable: {variable}")
-                recommendations.append(
-                    f"Remove the unused variable '{variable}' or use it."
-                )
-
-    # -------------------------
-    # Score
-    # -------------------------
     score = max(100 - len(issues) * 10, 50)
 
     if score >= 90:
@@ -124,6 +58,12 @@ def analyze_code(code: str):
     return {
         "score": score,
         "grade": grade,
+        "metrics": {
+            "total_lines": metrics["total_lines"],
+            "functions": metrics["functions"],
+            "classes": metrics["classes"],
+            "comments": metrics["comments"]
+        },
         "issues": issues,
         "recommendations": recommendations,
         "summary": "Code analysis completed successfully."
